@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GitLens Activator</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+
+  <!-- 标题栏 -->
+  <header class="titlebar">
+    <div class="app-icon">G</div>
+    <div class="app-title">
+      <h1>GitLens Activator</h1>
+      <p>为 GitLens Pro 提供一键激活（18.x+ 无需登录）/ 恢复（GUI 版）</p>
+    </div>
+  </header>
+
+  <!-- 工具栏 -->
+  <div class="toolbar">
+    <span class="label">自定义目录</span>
+    <input type="text" id="customDir" placeholder="输入 IDE 扩展目录路径，例如 D:\Code\cursor\extensions">
+    <button class="tbtn ghost" id="btnAddCustom">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><path d="M12 11v6"/><path d="M9 14h6"/></svg>
+      添加目录
+    </button>
+    <button class="tbtn ghost" id="btnRescan">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 12h10"/></svg>
+      扫描
+    </button>
+    <button class="tbtn blue" id="btnActivateAll">
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13 2 4.09 12.11a.6.6 0 0 0 .45 1h5.05l-1.6 8.53a.3.3 0 0 0 .53.26L19.91 11.9a.6.6 0 0 0-.45-1h-5.05l1.6-8.64a.3.3 0 0 0-.53-.26z"/></svg>
+      激活全部
+    </button>
+    <button class="tbtn red" id="btnRestoreAll">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
+      恢复全部
+    </button>
+  </div>
+
+  <!-- 状态行 -->
+  <div class="status-line" id="summary">扫描中…</div>
+
+  <!-- 卡片网格 -->
+  <main class="grid-wrap">
+    <div class="grid" id="ideList" role="listbox" aria-multiselectable="true" aria-label="IDE 列表">
+      <div class="empty-msg">扫描中…</div>
+    </div>
+  </main>
+
+  <!-- 底部栏 -->
+  <footer class="footer">
+    <span class="left">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
+      仅供学习交流使用，请勿用于商业用途。
+    </span>
+    <span>GitLens Activator v1.0.0</span>
+  </footer>
+
+</div>
+
+<!-- 确认弹窗 -->
+<div id="confirmOverlay" class="confirm-overlay hidden">
+  <div class="confirm-box">
+    <p id="confirmText"></p>
+    <div class="confirm-actions">
+      <button class="tbtn ghost" id="confirmCancel">取消</button>
+      <button class="tbtn blue" id="confirmBtn">确定</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toastContainer"></div>
+
+<script src="main.js"></script>
+</body>
+</html>
