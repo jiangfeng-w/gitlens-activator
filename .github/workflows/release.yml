@@ -1,0 +1,104 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: windows/amd64
+            artifact: gitlens-activator.exe
+            release_name: gitlens-activator-windows-amd64.exe
+          # ④ 原生 arm 构建：用 windows-11-arm 同架构编译，避免交叉编译的不确定性
+          #   ⚠️ windows-11-arm 仅对【公开仓库】可用；
+          #      若仓库为私有，把下面这行的 os 改回 windows-latest（交叉编译同样可行）
+          - os: windows-11-arm
+            platform: windows/arm64
+            artifact: gitlens-activator.exe
+            release_name: gitlens-activator-windows-arm64.exe
+            extra_flags: "-nopackage"
+          - os: ubuntu-latest
+            platform: linux/amd64
+            artifact: gitlens-activator
+            release_name: gitlens-activator-linux-amd64
+            extra_flags: "-tags webkit2_41"
+          - os: macos-latest
+            platform: darwin/universal
+            artifact: gitlens-activator.app
+            release_name: gitlens-activator-macos-universal
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          # 跟随 go.mod（go 1.25.0），避免与 1.22 错配
+          go-version-file: go.mod
+
+      - name: Add GOPATH/bin to PATH
+        # go install 的 wails 装在 GOPATH/bin，setup-go 不一定加进 PATH
+        run: echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+        shell: bash
+
+      - name: Install Wails CLI
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.14.0
+
+      - name: Install Linux deps
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev
+
+      - name: Test
+        # ubuntu-latest(24.04) 只有 webkit2gtk-4.1，编译 wails 必须带 -tags webkit2_41
+        run: go test ${{ matrix.os == 'ubuntu-latest' && '-tags webkit2_41' || '' }} ./...
+        shell: bash
+
+      - name: Build
+        run: wails build -clean -platform ${{ matrix.platform }} ${{ matrix.extra_flags }}
+        shell: bash
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.release_name }}
+          path: build/bin/${{ matrix.artifact }}
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare release files
+        run: |
+          mkdir -p release
+          cp artifacts/gitlens-activator-windows-amd64.exe/gitlens-activator.exe release/gitlens-activator-windows-amd64.exe
+          cp artifacts/gitlens-activator-windows-arm64.exe/gitlens-activator.exe release/gitlens-activator-windows-arm64.exe
+          cp artifacts/gitlens-activator-linux-amd64/gitlens-activator release/gitlens-activator-linux-amd64
+          chmod +x release/gitlens-activator-linux-amd64
+          (cd artifacts/gitlens-activator-macos-universal && zip -r ../../release/gitlens-activator-macos-universal.zip gitlens-activator.app)
+        shell: bash
+
+      - name: Publish Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*
+          generate_release_notes: true
