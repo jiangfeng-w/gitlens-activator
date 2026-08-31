@@ -94,7 +94,10 @@ jobs:
           cp artifacts/gitlens-activator-windows-arm64.exe/gitlens-activator.exe release/gitlens-activator-windows-arm64.exe
           cp artifacts/gitlens-activator-linux-amd64/gitlens-activator release/gitlens-activator-linux-amd64
           chmod +x release/gitlens-activator-linux-amd64
-          (cd artifacts/gitlens-activator-macos-universal && zip -r ../../release/gitlens-activator-macos-universal.zip gitlens-activator.app)
+          # upload-artifact 上传目录时只传内容不含目录本身，这里重建 .app 目录再压缩
+          mkdir -p macos-app/gitlens-activator.app
+          cp -R artifacts/gitlens-activator-macos-universal/. macos-app/gitlens-activator.app/
+          (cd macos-app && zip -r ../release/gitlens-activator-macos-universal.zip gitlens-activator.app)
         shell: bash
 
       - name: Publish Release
