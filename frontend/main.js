@@ -1,4 +1,4 @@
-let state = { presets: [], customs: [], busy: false };
+let state = { presets: [], customs: [], busy: false, progress: null };
 
 // 内置 IDE 固定顺序
 const PRESET_ORDER = [
@@ -200,20 +200,27 @@ function createCard(ed) {
     const detect = document.createElement("div");
     detect.className = "detect found";
 
-    ed.extensions.forEach((ext, idx) => {
-      if (idx > 0) detect.appendChild(document.createElement("br"));
+    ed.extensions.forEach(ext => {
+      const row = document.createElement("div");
+      row.className = "detect-row";
+
       const dot = document.createElement("span");
       dot.className = "dot";
-      detect.appendChild(dot);
+      row.appendChild(dot);
 
       const extName = document.createElement("span");
-      extName.textContent = " " + ext.dirName;
-      detect.appendChild(extName);
+      // 只显示版本号，省略冗余的 "eamodio.gitlens-" 前缀（版本已单独展示）
+      extName.className = "ext-ver";
+      extName.textContent = "v" + ext.version + (ext.universal ? " universal" : "");
+      extName.title = ext.dirName;
+      row.appendChild(extName);
 
       const backup = document.createElement("span");
       backup.className = "backup-tag " + (ext.hasBackup ? "has" : "none");
       backup.textContent = ext.hasBackup ? "已备份" : "无备份";
-      detect.appendChild(backup);
+      row.appendChild(backup);
+
+      detect.appendChild(row);
     });
 
     card.appendChild(detect);
@@ -378,8 +385,26 @@ async function restoreAll() {
 function setBusy(b) {
   state.busy = b;
   document.body.classList.toggle("is-busy", b);
-  // 不再禁用按钮（disabled 样式切换会导致顶部按钮整体闪烁），
-  // 交互防抖由各操作入口的 state.busy 检查保证
+  if (!b) {
+    // 清除进度显示并还原 summary
+    const summary = document.getElementById("summary");
+    summary.classList.remove("has-progress");
+    state.progress = null;
+    updateSummary();
+  }
+}
+
+// 批量操作进度：Go 端每完成一个目录 emit 一次 action:progress
+function setupProgressListener() {
+  if (!window.runtime || !window.runtime.EventsOn) return;
+  window.runtime.EventsOn("action:progress", data => {
+    if (!data || !state.busy) return;
+    state.progress = data;
+    const summary = document.getElementById("summary");
+    summary.classList.add("has-progress");
+    const failTxt = data.failures > 0 ? " · 失败 " + data.failures : "";
+    summary.textContent = "处理中 " + data.done + " / " + data.total + failTxt;
+  });
 }
 
 // ---- 自定义目录 ----
@@ -470,3 +495,4 @@ document.getElementById("customDir").addEventListener("keydown", e => {
 });
 
 refresh();
+setupProgressListener();

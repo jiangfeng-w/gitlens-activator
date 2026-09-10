@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"strings"
+
+	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // App 是暴露给前端的 Wails 绑定结构体。
@@ -43,12 +45,12 @@ func (a *App) RemoveCustomDir(dir string) (detectResult, error) {
 
 // Activate 批量激活，返回每个目录的操作结果。
 func (a *App) Activate(dirs []string) []actionResult {
-	return batchAction(dirs, activateExtensionDir, "激活成功")
+	return batchAction(a, dirs, activateExtensionDir, "激活成功")
 }
 
 // Restore 批量恢复，返回每个目录的操作结果。
 func (a *App) Restore(dirs []string) []actionResult {
-	return batchAction(dirs, restoreExtensionDir, "恢复成功")
+	return batchAction(a, dirs, restoreExtensionDir, "恢复成功")
 }
 
 // actionResult 单个扩展目录的操作结果。
@@ -59,18 +61,38 @@ type actionResult struct {
 }
 
 // batchAction 对 dirs 逐个执行 fn，汇总每个目录的成功/失败信息。
-func batchAction(dirs []string, fn func(string) error, okMsg string) []actionResult {
+// 每完成一个目录，向前端 emit 一次 action:progress 事件，供界面显示实时进度。
+func batchAction(a *App, dirs []string, fn func(string) error, okMsg string) []actionResult {
 	results := make([]actionResult, 0, len(dirs))
-	for _, d := range dirs {
+	total := len(dirs)
+	for i, d := range dirs {
 		d = strings.TrimSpace(d)
 		if d == "" {
 			continue
 		}
-		if err := fn(d); err != nil {
-			results = append(results, actionResult{DirPath: d, OK: false, Message: err.Error()})
+		var message string
+		err := fn(d)
+		if err != nil {
+			message = err.Error()
 		} else {
-			results = append(results, actionResult{DirPath: d, OK: true, Message: okMsg})
+			message = okMsg
 		}
+		wailsRuntime.EventsEmit(a.ctx, "action:progress", map[string]int{
+			"done":     i + 1,
+			"total":    total,
+			"failures": totalFailures(results),
+		})
+		results = append(results, actionResult{DirPath: d, OK: err == nil, Message: message})
 	}
 	return results
+}
+
+func totalFailures(results []actionResult) int {
+	n := 0
+	for _, r := range results {
+		if !r.OK {
+			n++
+		}
+	}
+	return n
 }

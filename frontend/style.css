@@ -241,6 +241,18 @@ input { font-family: inherit; outline: none; }
   flex: none;
 }
 
+/* 批量操作进度中：状态点变蓝 */
+.status-line.has-progress::before {
+  background: var(--blue);
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.7);
+  animation: pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
 /* ---- 卡片网格（可滚动） ---- */
 .grid-wrap {
   flex: 1;
@@ -461,10 +473,25 @@ input { font-family: inherit; outline: none; }
 .detect svg { width: 16px; height: 16px; flex: none; opacity: 0.8; }
 
 .detect.found {
-  justify-content: flex-start;
-  flex-wrap: wrap;
-  row-gap: 6px;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  gap: 6px;
   color: #b9c5d8;
+}
+
+/* 每个版本独占一行：圆点 + 版本 + 备份标签（右对齐） */
+.detect-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.detect-row .ext-ver {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .detect .dot {
@@ -615,12 +642,23 @@ body.is-busy .status-line::after {
 
 .confirm-actions .tbtn { height: 34px; padding: 0 16px; font-size: 12px; }
 
-/* ---- Toast ---- */
-.toast {
+/* ---- Toast（容器内纵向堆叠，多条不重叠） ---- */
+.toast-container {
   position: fixed;
   left: 50%;
   bottom: 60px;
-  transform: translateX(-50%) translateY(14px) scale(0.98);
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: center;
+  gap: 8px;
+  z-index: 1000;
+  pointer-events: none;
+}
+
+.toast {
+  position: static;
+  transform: translateY(14px) scale(0.98);
   background: #1c2739;
   border: 1px solid var(--card-border-hover);
   color: #cfd8e3;
@@ -634,7 +672,6 @@ body.is-busy .status-line::after {
   pointer-events: none;
   transition: all 0.25s var(--ease);
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
-  z-index: 1000;
   max-width: 440px;
   white-space: pre-line;
 }
@@ -653,7 +690,7 @@ body.is-busy .status-line::after {
 
 .toast.show {
   opacity: 1;
-  transform: translateX(-50%) translateY(0) scale(1);
+  transform: translateY(0) scale(1);
 }
 
 .toast-success {
