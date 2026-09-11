@@ -26,12 +26,44 @@ const I = {
   box: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="M3.3 7 12 12l8.7-5M12 22V12"/></svg>',
   trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>',
   spinner: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 3a9 9 0 1 0 9 9" /></svg>',
+  info: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>',
+  bolt: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13 2 4.09 12.11a.6.6 0 0 0 .45 1h5.05l-1.6 8.53a.3.3 0 0 0 .53.26L19.91 11.9a.6.6 0 0 0-.45-1h-5.05l1.6-8.64a.3.3 0 0 0-.53-.26z"/></svg>',
+  restore: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>',
+  check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4.5 12.5 5 5 10-11"/></svg>',
+};
+
+// 状态徽章文案（已激活带勾勾图标）
+function badgeContent(status) {
+  if (status === "activated") return I.check + "<span>已激活</span>";
+  return "<span>" + { inactive: "未激活", missing: "未安装" }[status] + "</span>";
+}
+
+// 本地官方图标文件（frontend/icons/*.svg），随应用内嵌加载，无网络依赖。
+// key 不在表中的（kiro/antigravity/qoder/catpaw 等）回落到下面的手绘 SVG。
+const OFFICIAL_ICONS = {
+  "vscode": "icons/vscode.svg",
+  "vscode-insiders": "icons/vscode-insiders.svg",
+  "cursor": "icons/cursor.svg",
+  "windsurf": "icons/windsurf.svg",
+  "kiro": "icons/kiro.svg",
+  "antigravity": "icons/antigravity.svg",
+  "trae": "icons/trae.svg",
+  "traecn": "icons/trae.svg",
+  "codebuddy": "icons/codebuddy.svg",
+  "codebuddycn": "icons/codebuddy.svg",
+  "qoder": "icons/qoder.svg",
+  "qodercn": "icons/qoder.svg",
+  "catpaw": "icons/catpaw.svg",
 };
 
 const tile = (txt, color) =>
   '<span class="tile" style="color:' + color + ';border:2px solid ' + color + '">' + txt + '</span>';
 
 function productLogo(key) {
+  const file = OFFICIAL_ICONS[key];
+  if (file) {
+    return '<img class="official-logo" src="' + file + '" alt="" aria-hidden="true">';
+  }
   switch (key) {
     case "vscode":
       return '<svg viewBox="0 0 24 24" fill="#3aa1e0"><path d="M23.15 2.587 18.21.21a1.494 1.494 0 0 0-1.705.29l-9.46 8.63-4.12-3.128a.999.999 0 0 0-1.276.057L.327 7.261A1 1 0 0 0 .326 8.74L3.897 12 .326 15.26a1 1 0 0 0 .001 1.479L1.65 17.94a.999.999 0 0 0 1.276.057l4.12-3.128 9.46 8.63a1.492 1.492 0 0 0 1.704.29l4.942-2.377A1.5 1.5 0 0 0 24 20.06V3.939a1.5 1.5 0 0 0-.85-1.352zm-5.146 14.861L10.826 12l7.178-5.448v10.896z"/></svg>';
@@ -89,6 +121,13 @@ function isActivated(ed) {
   return ed.extensions.every(ext => ext.activated);
 }
 
+// 卡片状态：activated / inactive / missing
+function cardStatus(ed) {
+  const hasGitLens = ed.installed && ed.extensions && ed.extensions.length > 0;
+  if (!hasGitLens) return "missing";
+  return isActivated(ed) ? "activated" : "inactive";
+}
+
 // ---- 渲染 ----
 // 复用已有卡片节点，避免每次操作后所有卡片重播入场动画导致闪烁
 function render() {
@@ -128,8 +167,9 @@ function render() {
 
 function createCard(ed) {
   const key = rowKey(ed);
-  const hasGitLens = ed.installed && ed.extensions && ed.extensions.length > 0;
-  const activated = hasGitLens && isActivated(ed);
+  const status = cardStatus(ed);
+  const hasGitLens = status !== "missing";
+  const activated = status === "activated";
 
   const card = document.createElement("div");
   card.className = "card" + (activated ? " selected" : "") + (!hasGitLens ? " locked" : "");
@@ -138,7 +178,7 @@ function createCard(ed) {
   card.setAttribute("aria-selected", activated ? "true" : "false");
   card.tabIndex = hasGitLens ? 0 : -1;
 
-  // 头部：logo + 名称 + badge
+  // 头部：logo + 名称 + 状态徽章 + 详情按钮
   const head = document.createElement("div");
   head.className = "card-head";
 
@@ -152,95 +192,35 @@ function createCard(ed) {
   name.textContent = ed.name;
   head.appendChild(name);
 
-  // 自定义标签 + 删除按钮
-  if (ed.custom) {
-    const customBadge = document.createElement("span");
-    customBadge.className = "badge custom";
-    customBadge.textContent = "自定义";
-    head.appendChild(customBadge);
-
-    const del = document.createElement("button");
-    del.className = "card-delete";
-    del.title = "删除目录";
-    del.innerHTML = I.trash;
-    del.addEventListener("click", e => {
-      e.stopPropagation();
-      removeCustom(ed.extensionsDir);
-    });
-    head.appendChild(del);
-  }
-
   const badge = document.createElement("span");
-  badge.className = "badge " + (hasGitLens ? "ok" : "none");
-  badge.textContent = hasGitLens
-    ? "↑ " + ed.extensions.length + " 个 GitLens"
-    : "未安装";
+  badge.className = "badge status-" + status;
+  badge.innerHTML = badgeContent(status);
   head.appendChild(badge);
 
+  // 设置（详情）按钮
+  const info = document.createElement("button");
+  info.className = "card-info";
+  info.title = "详情";
+  info.setAttribute("aria-label", "详情");
+  info.innerHTML = I.info;
+  info.addEventListener("click", e => {
+    e.stopPropagation();
+    showDetail(ed);
+  });
+  head.appendChild(info);
+
   card.appendChild(head);
-
-  // 版本号
-  if (hasGitLens && ed.extensions[0]) {
-    const ver = document.createElement("div");
-    ver.className = "ver";
-    const ext0 = ed.extensions[0];
-    ver.textContent = "v" + ext0.version + (ext0.universal ? " universal" : "");
-    card.appendChild(ver);
-  }
-
-  // 路径
-  const path = document.createElement("div");
-  path.className = "path";
-  path.textContent = ed.extensionsDir;
-  path.title = ed.extensionsDir;
-  card.appendChild(path);
-
-  // 检测区
-  if (hasGitLens) {
-    const detect = document.createElement("div");
-    detect.className = "detect found";
-
-    ed.extensions.forEach(ext => {
-      const row = document.createElement("div");
-      row.className = "detect-row";
-
-      const dot = document.createElement("span");
-      dot.className = "dot";
-      row.appendChild(dot);
-
-      const extName = document.createElement("span");
-      // 只显示版本号，省略冗余的 "eamodio.gitlens-" 前缀（版本已单独展示）
-      extName.className = "ext-ver";
-      extName.textContent = "v" + ext.version + (ext.universal ? " universal" : "");
-      extName.title = ext.dirName;
-      row.appendChild(extName);
-
-      const backup = document.createElement("span");
-      backup.className = "backup-tag " + (ext.hasBackup ? "has" : "none");
-      backup.textContent = ext.hasBackup ? "已备份" : "无备份";
-      row.appendChild(backup);
-
-      detect.appendChild(row);
-    });
-
-    card.appendChild(detect);
-  } else {
-    // 空状态
-    const detect = document.createElement("div");
-    detect.className = "detect";
-    detect.innerHTML = I.box;
-    const label = document.createElement("span");
-    label.textContent = "未检测到 GitLens";
-    detect.appendChild(label);
-    card.appendChild(detect);
-  }
 
   // 底部提示
   const hint = document.createElement("div");
   hint.className = "card-hint" + (hasGitLens ? "" : " off");
-  hint.textContent = hasGitLens
-    ? (activated ? "已激活 · 点击恢复" : "点击激活")
-    : "无 GitLens";
+  if (hasGitLens) {
+    hint.innerHTML = activated
+      ? I.restore + "<span>点击恢复</span>"
+      : I.bolt + "<span>点击激活</span>";
+  } else {
+    hint.textContent = "无 GitLens";
+  }
   card.appendChild(hint);
 
   // 点击卡片：已激活 -> 恢复；未激活 -> 激活
@@ -258,53 +238,35 @@ function createCard(ed) {
   return card;
 }
 
-// 复用已有卡片节点，仅更新动态内容（激活态、版本、备份标签、提示），不重建 DOM
+// 复用已有卡片节点，仅更新动态内容（激活态、状态徽章、版本行、提示），不重建 DOM
 function updateCard(card, ed) {
-  const hasGitLens = ed.installed && ed.extensions && ed.extensions.length > 0;
-  const activated = hasGitLens && isActivated(ed);
+  const status = cardStatus(ed);
+  const hasGitLens = status !== "missing";
+  const activated = status === "activated";
 
   card.classList.toggle("selected", activated);
   card.classList.toggle("locked", !hasGitLens);
   card.setAttribute("aria-selected", activated ? "true" : "false");
   card.tabIndex = hasGitLens ? 0 : -1;
 
-  // 版本号
-  const ver = card.querySelector(".ver");
-  if (hasGitLens && ed.extensions[0]) {
-    const ext0 = ed.extensions[0];
-    if (ver) {
-      ver.textContent = "v" + ext0.version + (ext0.universal ? " universal" : "");
-    } else {
-      const v = document.createElement("div");
-      v.className = "ver";
-      v.textContent = "v" + ext0.version + (ext0.universal ? " universal" : "");
-      card.insertBefore(v, card.querySelector(".path"));
-    }
-  } else if (ver) {
-    ver.remove();
-  }
-
-  // 检测区：更新备份标签
-  const detect = card.querySelector(".detect");
-  if (hasGitLens && detect) {
-    detect.classList.add("found");
-    const tags = detect.querySelectorAll(".backup-tag");
-    ed.extensions.forEach((ext, idx) => {
-      if (tags[idx]) {
-        tags[idx].textContent = ext.hasBackup ? "已备份" : "无备份";
-        tags[idx].classList.toggle("has", !!ext.hasBackup);
-        tags[idx].classList.toggle("none", !ext.hasBackup);
-      }
-    });
+  // 状态徽章
+  const badge = card.querySelector(".badge");
+  if (badge) {
+    badge.className = "badge status-" + status;
+    badge.innerHTML = badgeContent(status);
   }
 
   // 底部提示
   const hint = card.querySelector(".card-hint");
   if (hint) {
     hint.classList.toggle("off", !hasGitLens);
-    hint.textContent = hasGitLens
-      ? (activated ? "已激活 · 点击恢复" : "点击激活")
-      : "无 GitLens";
+    if (hasGitLens) {
+      hint.innerHTML = activated
+        ? I.restore + "<span>点击恢复</span>"
+        : I.bolt + "<span>点击激活</span>";
+    } else {
+      hint.textContent = "无 GitLens";
+    }
   }
 }
 
@@ -464,10 +426,84 @@ function resolveConfirm(v) {
   }
 }
 
+// ---- 详情弹窗 ----
+// 详情实时从 state 解析（与卡片点击同策略），展示路径 / 全部版本 / 备份状态，
+// 自定义目录时提供删除入口。
+function showDetail(ed) {
+  const key = rowKey(ed);
+  const cur = orderedCandidates().find(e => rowKey(e) === key) || ed;
+
+  document.getElementById("detailTitle").textContent = cur.name + (cur.custom ? "（自定义）" : "");
+  document.getElementById("detailPath").textContent = cur.extensionsDir;
+  document.getElementById("detailPath").title = cur.extensionsDir;
+
+  const table = document.getElementById("detailExtTable");
+  table.innerHTML = "";
+  const exts = cur.extensions || [];
+  if (exts.length === 0) {
+    const row = document.createElement("div");
+    row.className = "detail-empty";
+    row.textContent = "未检测到 GitLens 扩展";
+    table.appendChild(row);
+  } else {
+    exts.forEach(ext => {
+      const row = document.createElement("div");
+      row.className = "detail-ext-row";
+
+      const dot = document.createElement("span");
+      dot.className = "dot" + (ext.activated ? "" : " off");
+      row.appendChild(dot);
+
+      const name = document.createElement("span");
+      name.className = "detail-ext-name";
+      name.textContent = "v" + ext.version + (ext.universal ? " universal" : "");
+      name.title = ext.dirName;
+      row.appendChild(name);
+
+      const backup = document.createElement("span");
+      backup.className = "backup-tag " + (ext.hasBackup ? "has" : "none");
+      backup.textContent = ext.hasBackup ? "已备份" : "无备份";
+      row.appendChild(backup);
+
+      const stateTag = document.createElement("span");
+      stateTag.className = "detail-state" + (ext.activated ? " on" : "");
+      stateTag.textContent = ext.activated ? "已激活" : "未激活";
+      row.appendChild(stateTag);
+
+      table.appendChild(row);
+    });
+  }
+
+  // 自定义目录：显示删除按钮
+  const delBtn = document.getElementById("detailDelete");
+  delBtn.classList.toggle("hidden", !cur.custom);
+  delBtn.onclick = () => {
+    hideDetail();
+    removeCustom(cur.extensionsDir);
+  };
+
+  document.getElementById("detailOverlay").classList.remove("hidden");
+}
+
+function hideDetail() {
+  document.getElementById("detailOverlay").classList.add("hidden");
+}
+
 document.getElementById("confirmBtn").addEventListener("click", () => resolveConfirm(true));
 document.getElementById("confirmCancel").addEventListener("click", () => resolveConfirm(false));
 document.getElementById("confirmOverlay").addEventListener("click", e => {
   if (e.target === e.currentTarget) resolveConfirm(false);
+});
+
+document.getElementById("detailClose").addEventListener("click", hideDetail);
+document.getElementById("detailCloseBtn").addEventListener("click", hideDetail);
+document.getElementById("detailOverlay").addEventListener("click", e => {
+  if (e.target === e.currentTarget) hideDetail();
+});
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape" && !document.getElementById("detailOverlay").classList.contains("hidden")) {
+    hideDetail();
+  }
 });
 
 function showToast(msg, type) {
