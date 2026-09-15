@@ -130,19 +130,67 @@ input { font-family: inherit; outline: none; }
   flex: none;
   box-shadow: var(--shadow-card);
   backdrop-filter: blur(14px);
+  /* 定位 + 提升层级，保证排序下拉弹层盖在卡片之上 */
+  position: relative;
+  z-index: 20;
 }
 
-.toolbar .label {
+.toolbar-gap { flex: 1; }
+
+/* ---- 状态筛选分段控件 ---- */
+.filter-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+}
+
+.seg {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+  height: 38px;
+  padding: 3px;
+  background: rgba(10, 18, 34, 0.75);
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius-sm);
+}
+
+.seg-btn {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 6px;
   font-size: 12px;
   font-weight: 600;
-  letter-spacing: 0.4px;
-  color: var(--txt-2);
-  flex: none;
+  color: var(--txt-3);
   white-space: nowrap;
+  transition: background var(--transition), color var(--transition), box-shadow var(--transition);
 }
 
-.toolbar input {
-  flex: 1;
+.seg-btn:hover { color: var(--txt); }
+
+.seg-btn.is-on {
+  background: var(--blue-soft);
+  color: #dbe7ff;
+  box-shadow: inset 0 0 0 1px rgba(99, 140, 255, 0.35);
+}
+
+/* 两组分段控件之间的分隔线 */
+.filter-sep {
+  flex: none;
+  width: 1px;
+  height: 20px;
+  background: rgba(122, 148, 190, 0.22);
+}
+
+/* 筛选用 class 隐藏（.card 有 display:flex，UA 的 [hidden] 会被覆盖） */
+.card.is-hidden,
+.empty-msg.is-hidden { display: none; }
+
+/* 文本输入框（添加自定义目录弹窗） */
+.tinput {
+  width: 100%;
   height: 38px;
   background: var(--input-bg);
   border: 1px solid var(--input-border);
@@ -154,9 +202,9 @@ input { font-family: inherit; outline: none; }
   transition: border-color var(--transition), box-shadow var(--transition);
 }
 
-.toolbar input::placeholder { color: var(--txt-4); }
+.tinput::placeholder { color: var(--txt-4); }
 
-.toolbar input:focus {
+.tinput:focus {
   border-color: var(--input-border-focus);
   box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.2), 0 0 0 3px rgba(59, 130, 246, 0.18);
 }
@@ -279,6 +327,13 @@ input { font-family: inherit; outline: none; }
 @media (max-width: 1200px) { .grid { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 900px)  { .grid { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 640px)  { .grid { grid-template-columns: 1fr; } }
+
+/* 窄窗口下工具栏换行：筛选/排序一行，操作按钮一行 */
+@media (max-width: 900px) {
+  .toolbar { flex-wrap: wrap; }
+  .filter-group { flex: 1 1 100%; }
+  .toolbar-gap { display: none; }
+}
 
 /* ---- IDE 卡片 ---- */
 .card {
@@ -456,7 +511,8 @@ input { font-family: inherit; outline: none; }
 /* ---- 详情弹窗 ---- */
 .detail-box { max-width: 560px; }
 
-.detail-head {
+.detail-head,
+.modal-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -464,13 +520,15 @@ input { font-family: inherit; outline: none; }
   margin-bottom: 16px;
 }
 
-.detail-head h2 {
+.detail-head h2,
+.modal-head h2 {
   font-size: 15px;
   font-weight: 700;
   letter-spacing: 0.2px;
 }
 
-.detail-head .card-info {
+.detail-head .card-info,
+.modal-head .card-info {
   opacity: 1;
 }
 
@@ -716,6 +774,19 @@ body.is-busy .status-line::after {
 }
 
 .confirm-actions .tbtn { height: 34px; padding: 0 16px; font-size: 12px; }
+
+/* ---- 添加自定义目录弹窗 ---- */
+.add-box { max-width: 520px; }
+
+.field { display: block; margin-bottom: 14px; }
+
+.field-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--txt-3);
+}
 
 /* ---- Toast（容器内纵向堆叠，多条不重叠） ---- */
 .toast-container {

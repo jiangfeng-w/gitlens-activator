@@ -98,7 +98,30 @@ func configFilePath() (string, error) {
 	return filepath.Join(dir, "gitlens-activator", "custom_dirs.json"), nil
 }
 
-func loadCustomDirs() []string {
+// customDir 自定义扩展目录。Name 是用户指定的显示名，为空时回落到文件夹名。
+type customDir struct {
+	Path string `json:"path"`
+	Name string `json:"name"`
+}
+
+// parseCustomDirs 解析配置文件内容，兼容旧版的纯路径字符串数组格式。
+func parseCustomDirs(data []byte) []customDir {
+	var legacy []string
+	if err := json.Unmarshal(data, &legacy); err == nil {
+		dirs := make([]customDir, 0, len(legacy))
+		for _, p := range legacy {
+			dirs = append(dirs, customDir{Path: p})
+		}
+		return dirs
+	}
+	var dirs []customDir
+	if err := json.Unmarshal(data, &dirs); err != nil {
+		return nil
+	}
+	return dirs
+}
+
+func loadCustomDirs() []customDir {
 	path, err := configFilePath()
 	if err != nil {
 		return nil
@@ -107,14 +130,10 @@ func loadCustomDirs() []string {
 	if err != nil {
 		return nil
 	}
-	var dirs []string
-	if err := json.Unmarshal(data, &dirs); err != nil {
-		return nil
-	}
-	return dirs
+	return parseCustomDirs(data)
 }
 
-func saveCustomDirs(dirs []string) error {
+func saveCustomDirs(dirs []customDir) error {
 	path, err := configFilePath()
 	if err != nil {
 		return err
@@ -129,8 +148,8 @@ func saveCustomDirs(dirs []string) error {
 	return os.WriteFile(path, data, 0644)
 }
 
-// addCustomDir 新增自定义目录（去重后保存）
-func addCustomDir(dir string) error {
+// addCustomDir 新增自定义目录（名称留空时用文件夹名，按路径去重后保存）
+func addCustomDir(dir, name string) error {
 	dir = strings.TrimSpace(dir)
 	if dir == "" {
 		return fmt.Errorf("目录不能为空")
@@ -143,14 +162,18 @@ func addCustomDir(dir string) error {
 	if err != nil {
 		return err
 	}
+	name = strings.TrimSpace(name)
+	if name == "" {
+		name = filepath.Base(abs)
+	}
 	dirs := loadCustomDirs()
 	for _, d := range dirs {
-		dAbs, err := filepath.Abs(d)
+		dAbs, err := filepath.Abs(d.Path)
 		if err == nil && strings.EqualFold(dAbs, abs) {
-			return fmt.Errorf("目录已存在: %s", d)
+			return fmt.Errorf("目录已存在: %s", d.Path)
 		}
 	}
-	dirs = append(dirs, abs)
+	dirs = append(dirs, customDir{Path: abs, Name: name})
 	return saveCustomDirs(dirs)
 }
 
@@ -164,7 +187,7 @@ func removeCustomDir(dir string) error {
 	kept := dirs[:0]
 	removed := false
 	for _, d := range dirs {
-		dAbs, err := filepath.Abs(d)
+		dAbs, err := filepath.Abs(d.Path)
 		if err == nil && strings.EqualFold(dAbs, abs) {
 			removed = true
 			continue
@@ -185,10 +208,14 @@ func detectAll() detectResult {
 		res.Presets = append(res.Presets, detectOne(c))
 	}
 	for _, d := range loadCustomDirs() {
+		name := d.Name
+		if name == "" {
+			name = filepath.Base(d.Path)
+		}
 		res.Customs = append(res.Customs, detectOne(editorCandidate{
-			Key:           "custom-" + d,
-			Name:          filepath.Base(d),
-			ExtensionsDir: d,
+			Key:           "custom-" + d.Path,
+			Name:          name,
+			ExtensionsDir: d.Path,
 			Custom:        true,
 		}))
 	}

@@ -27,9 +27,9 @@ func (a *App) DetectAll() detectResult {
 	return detectAll()
 }
 
-// AddCustomDir 添加并保存自定义目录，返回刷新后的检测结果。
-func (a *App) AddCustomDir(dir string) (detectResult, error) {
-	if err := addCustomDir(dir); err != nil {
+// AddCustomDir 添加并保存自定义目录（name 为空时使用目录文件夹名），返回刷新后的检测结果。
+func (a *App) AddCustomDir(dir string, name string) (detectResult, error) {
+	if err := addCustomDir(dir, name); err != nil {
 		return detectResult{}, err
 	}
 	return detectAll(), nil

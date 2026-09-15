@@ -6,8 +6,8 @@ export function Activate(arg1) {
   return window['go']['main']['App']['Activate'](arg1);
 }
 
-export function AddCustomDir(arg1) {
-  return window['go']['main']['App']['AddCustomDir'](arg1);
+export function AddCustomDir(arg1, arg2) {
+  return window['go']['main']['App']['AddCustomDir'](arg1, arg2);
 }
 
 export function DetectAll() {

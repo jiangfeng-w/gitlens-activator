@@ -85,6 +85,24 @@ func TestActivateForVersion16NoPatchPoints(t *testing.T) {
 
 const v16Snippet = `function i9(e,t,i){let r,s,n,o={id:e.user.id,name:e.user.name,email:e.user.email};return o}`
 
+func TestParseCustomDirsLegacyAndCurrent(t *testing.T) {
+	// 旧格式：纯路径字符串数组，Name 留空，由 detectAll 回落到文件夹名
+	legacy := parseCustomDirs([]byte(`["D:\\a\\extensions","D:\\b\\extensions"]`))
+	if len(legacy) != 2 || legacy[0].Path != `D:\a\extensions` || legacy[0].Name != "" {
+		t.Fatalf("legacy parse mismatch: %+v", legacy)
+	}
+
+	// 新格式：对象数组
+	current := parseCustomDirs([]byte(`[{"path":"D:\\a\\extensions","name":"我的 IDE"}]`))
+	if len(current) != 1 || current[0].Name != "我的 IDE" {
+		t.Fatalf("current parse mismatch: %+v", current)
+	}
+
+	if got := parseCustomDirs([]byte(`not json`)); got != nil {
+		t.Fatalf("expected nil for invalid config, got %+v", got)
+	}
+}
+
 func TestActivateRestoreDir16Idempotent(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "eamodio.gitlens-16.10.0")
 	if err := os.MkdirAll(filepath.Join(dir, "dist"), 0o755); err != nil {
