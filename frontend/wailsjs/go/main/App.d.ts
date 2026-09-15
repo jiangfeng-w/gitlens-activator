@@ -4,7 +4,7 @@ import {main} from '../models';
 
 export function Activate(arg1:Array<string>):Promise<Array<main.actionResult>>;
 
-export function AddCustomDir(arg1:string):Promise<main.detectResult>;
+export function AddCustomDir(arg1:string,arg2:string):Promise<main.detectResult>;
 
 export function DetectAll():Promise<main.detectResult>;
 

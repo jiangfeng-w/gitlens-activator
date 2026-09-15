@@ -1,4 +1,4 @@
-let state = { presets: [], customs: [], busy: false, progress: null };
+let state = { presets: [], customs: [], busy: false, progress: null, filter: "all", sort: "default" };
 
 // 内置 IDE 固定顺序
 const PRESET_ORDER = [
@@ -128,41 +128,88 @@ function cardStatus(ed) {
   return isActivated(ed) ? "activated" : "inactive";
 }
 
+const STATUS_RANK = { activated: 0, inactive: 1, missing: 2 };
+
+// 筛选取交集后按当前排序方式重排；只影响展示，批量操作仍作用于全部 IDE
+function visibleCandidates() {
+  const all = orderedCandidates();
+  const list = state.filter === "all" ? all : all.filter(ed => cardStatus(ed) === state.filter);
+  if (state.sort === "default") return list;
+  const sorted = list.slice();
+  if (state.sort === "name") {
+    sorted.sort((a, b) => a.name.localeCompare(b.name, "zh"));
+  } else {
+    sorted.sort((a, b) => STATUS_RANK[cardStatus(a)] - STATUS_RANK[cardStatus(b)]);
+  }
+  return sorted;
+}
+
 // ---- 渲染 ----
-// 复用已有卡片节点，避免每次操作后所有卡片重播入场动画导致闪烁
+// 所有候选卡片常驻 DOM：筛选只切 .is-hidden，排序只改 CSS order（grid 项支持 order）。
+// 绝不把已有节点摘下再挂回——detach + reattach 会重置 CSS 动画，导致卡片重播入场动画闪烁。
 function render() {
   const grid = document.getElementById("ideList");
   const all = orderedCandidates();
 
-  if (all.length === 0) {
-    grid.innerHTML = '<div class="empty-msg">无数据</div>';
-    updateSummary();
-    return;
-  }
-
-  const cards = Array.from(grid.querySelectorAll(".card"));
-  const existing = new Map(cards.map(c => [c.dataset.key, c]));
+  const existing = new Map(Array.from(grid.querySelectorAll(".card")).map(c => [c.dataset.key, c]));
   const keys = new Set(all.map(rowKey));
 
-  // 1. 移除已消失的卡片（自定义目录被删除等）
+  // 1. 数据中已不存在的卡片（自定义目录被删除）直接移除
   existing.forEach((card, key) => {
-    if (!keys.has(key)) card.remove();
-  });
-
-  // 2. 原地更新已有卡片；新卡片按顺序插入。
-  //    注意：绝不能把已有节点摘下再挂回（detach + reattach 会重置 CSS 动画，导致所有卡片重播入场动画闪烁）
-  const emptyMsg = grid.querySelector(".empty-msg");
-  if (emptyMsg) emptyMsg.remove();
-  all.forEach(ed => {
-    const key = rowKey(ed);
-    const old = existing.get(key);
-    if (old) {
-      updateCard(old, ed);
-    } else {
-      grid.appendChild(createCard(ed));
+    if (!keys.has(key)) {
+      card.remove();
+      existing.delete(key);
     }
   });
+
+  // 2. 补齐新卡片，并刷新所有卡片内容
+  all.forEach(ed => {
+    const key = rowKey(ed);
+    let card = existing.get(key);
+    if (!card) {
+      card = createCard(ed);
+      grid.appendChild(card);
+      existing.set(key, card);
+    }
+    updateCard(card, ed);
+  });
+
+  // 3. 按筛选 + 排序结果决定可见性与显示位置
+  const visible = visibleCandidates();
+  visible.forEach((ed, i) => {
+    const card = existing.get(rowKey(ed));
+    if (!card) return;
+    card.classList.remove("is-hidden");
+    card.style.order = i;
+  });
+  const shown = new Set(visible.map(rowKey));
+  existing.forEach((card, key) => {
+    if (shown.has(key)) return;
+    card.classList.add("is-hidden");
+    card.style.order = "";
+  });
+
+  updateEmptyMsg(grid, all.length, visible.length);
   updateSummary();
+}
+
+// 空态提示节点常驻，避免用 innerHTML 重建时连带销毁卡片节点缓存
+function updateEmptyMsg(grid, total, shown) {
+  let msg = grid.querySelector(".empty-msg");
+  if (!msg) {
+    msg = document.createElement("div");
+    msg.className = "empty-msg";
+    grid.appendChild(msg);
+  }
+  if (total === 0) {
+    msg.textContent = "无数据";
+    msg.classList.remove("is-hidden");
+  } else if (shown === 0) {
+    msg.textContent = "无符合当前筛选的 IDE";
+    msg.classList.remove("is-hidden");
+  } else {
+    msg.classList.add("is-hidden");
+  }
 }
 
 function createCard(ed) {
@@ -272,10 +319,12 @@ function updateCard(card, ed) {
 
 function updateSummary() {
   const all = orderedCandidates();
-  const found = all.filter(ed => ed.extensions && ed.extensions.length > 0).length;
   const act = all.filter(ed => isActivated(ed)).length;
-  document.getElementById("summary").textContent =
-    "已找到 " + all.length + " 个 IDE · 已激活 " + act + " 个 · 点击卡片切换激活 / 恢复";
+  let text = "已找到 " + all.length + " 个 IDE · 已激活 " + act + " 个";
+  if (state.filter !== "all") {
+    text += " · 筛选出 " + visibleCandidates().length + " 个";
+  }
+  document.getElementById("summary").textContent = text + " · 点击卡片切换激活 / 恢复";
 }
 
 // ---- 操作 ----
@@ -370,19 +419,43 @@ function setupProgressListener() {
 }
 
 // ---- 自定义目录 ----
-async function addCustom() {
+const addOverlay = document.getElementById("addOverlay");
+const addPathInput = document.getElementById("addPath");
+const addNameInput = document.getElementById("addName");
+// 名称跟随路径自动预填文件夹名；用户手动改过之后不再覆盖
+let addNameDirty = false;
+
+function baseName(p) {
+  const parts = p.trim().replace(/[\\/]+$/, "").split(/[\\/]/);
+  return parts[parts.length - 1] || "";
+}
+
+function openAddDialog() {
   if (state.busy) return;
-  const dir = document.getElementById("customDir").value.trim();
+  addPathInput.value = "";
+  addNameInput.value = "";
+  addNameDirty = false;
+  addOverlay.classList.remove("hidden");
+  addPathInput.focus();
+}
+
+function closeAddDialog() {
+  addOverlay.classList.add("hidden");
+}
+
+async function submitAdd() {
+  const dir = addPathInput.value.trim();
   if (!dir) {
     showToast("请输入目录路径", "error");
+    addPathInput.focus();
     return;
   }
   try {
-    const data = await goApp().AddCustomDir(dir);
-    document.getElementById("customDir").value = "";
+    const data = await goApp().AddCustomDir(dir, addNameInput.value.trim());
     state.presets = data.presets || [];
     state.customs = data.customs || [];
     render();
+    closeAddDialog();
     showToast("已添加自定义目录", "success");
   } catch (err) {
     showToast(err.message, "error");
@@ -501,8 +574,11 @@ document.getElementById("detailOverlay").addEventListener("click", e => {
   if (e.target === e.currentTarget) hideDetail();
 });
 document.addEventListener("keydown", e => {
-  if (e.key === "Escape" && !document.getElementById("detailOverlay").classList.contains("hidden")) {
+  if (e.key !== "Escape") return;
+  if (!document.getElementById("detailOverlay").classList.contains("hidden")) {
     hideDetail();
+  } else if (!addOverlay.classList.contains("hidden")) {
+    closeAddDialog();
   }
 });
 
@@ -519,15 +595,55 @@ function showToast(msg, type) {
 }
 
 // ---- 绑定 ----
-document.getElementById("btnAddCustom").addEventListener("click", addCustom);
+document.getElementById("btnAddCustom").addEventListener("click", openAddDialog);
 document.getElementById("btnRescan").addEventListener("click", () => {
   refresh();
   showToast("已重新扫描", "success");
 });
 document.getElementById("btnActivateAll").addEventListener("click", activateAll);
 document.getElementById("btnRestoreAll").addEventListener("click", restoreAll);
-document.getElementById("customDir").addEventListener("keydown", e => {
-  if (e.key === "Enter") addCustom();
+
+// 分段控件：点击切换选中项、同步高亮，再交回调用方更新 state
+function setupSeg(id, onChange) {
+  const root = document.getElementById(id);
+  root.addEventListener("click", e => {
+    const btn = e.target.closest(".seg-btn");
+    if (!btn) return;
+    root.querySelectorAll(".seg-btn").forEach(b => {
+      const on = b === btn;
+      b.classList.toggle("is-on", on);
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+    onChange(btn.dataset.value);
+  });
+}
+
+setupSeg("statusFilter", value => {
+  state.filter = value;
+  render();
+});
+
+setupSeg("sortFilter", value => {
+  state.sort = value;
+  render();
+});
+
+addPathInput.addEventListener("input", () => {
+  if (!addNameDirty) addNameInput.value = baseName(addPathInput.value);
+});
+addNameInput.addEventListener("input", () => {
+  addNameDirty = true;
+});
+[addPathInput, addNameInput].forEach(el => {
+  el.addEventListener("keydown", e => {
+    if (e.key === "Enter") submitAdd();
+  });
+});
+document.getElementById("addConfirm").addEventListener("click", submitAdd);
+document.getElementById("addCancel").addEventListener("click", closeAddDialog);
+document.getElementById("addClose").addEventListener("click", closeAddDialog);
+addOverlay.addEventListener("click", e => {
+  if (e.target === e.currentTarget) closeAddDialog();
 });
 
 refresh();
